@@ -7,6 +7,7 @@
 #include <QColor>
 #include <iostream>
 #include <ctime>
+#include <sstream>
 
 enum DIR
 {
@@ -21,6 +22,7 @@ enum DIR
 
 void dyfuzja(QImage &in, QImage &out);
 void narysujDroge(QImage &img, int startX, int startY, int finishX, int finishY);
+void helpMe();
 
 
 __global__ void dyfuzjaKernel(unsigned *wyn, const unsigned *data, const int width, const int height, bool *czy)
@@ -63,23 +65,87 @@ __global__ void dyfuzjaKernel(unsigned *wyn, const unsigned *data, const int wid
 
 int main(int argc, char **argv)
 {
-	int startX = 4, startY = 4, finishX = 60, finishY = 60;
-
-	if(argc < 2)
+	int startX = 4, startY = 4, finishX = 508, finishY = 508;
+	std::string imgDir;
+	std::stringstream ss;
+	
+	for(int i = 0; i < argc; i++)
 	{
-		std::cerr << "prosze podac sciezke do obrazka!\n";
-		return 3;
+		std::string s(argv[i]);
+		if(s[0] != '-')
+			continue;
+			
+		switch(s[1])
+		{
+			case 'i':
+				if(s[2] != '=')
+					continue;
+				imgDir = s.substr(3);
+				break;
+			case 's':
+				if(s[3] != '=')
+					continue;
+				if(s[2] == 'x')
+				{
+					ss.clear();
+					ss.str(s.substr(4));
+					ss >> startX;
+				}
+				else if(s[2] == 'y')
+				{
+					ss.clear();
+					ss.str(s.substr(4));
+					ss >> startY;
+				}
+				else
+					continue;
+				break;
+			case 'f':
+				if(s[3] != '=')
+					continue;
+				if(s[2] == 'x')
+				{
+					ss.clear();
+					ss.str(s.substr(4));
+					ss >> finishX;
+				}
+				else if(s[2] == 'y')
+				{
+					ss.clear();
+					ss.str(s.substr(4));
+					ss >> finishY;
+				}
+				else
+					continue;
+				break;
+			case 'h':
+				helpMe();
+				return 0;
+		}
 	}
+	
+	if(imgDir.size() == 0 || startX < 0 || startY < 0 || finishX < 0 || finishY < 0)
+	{
+		helpMe();
+		return -1;
+	}
+
+	// if(argc < 2)
+	// {
+		// std::cerr << "prosze podac sciezke do obrazka!\n";
+		// return 3;
+	// }
 	// for(int u = 0; u < argc; u++)
 	// {
 		// std::cout << argv[u] << "\n";
 	// }
 
-	std::cout<<"RUN!\n";
+	// std::cout<<"RUN!\n";
 	QImage img;
-	if(!img.load(argv[1]))
+	if(!img.load(imgDir.c_str()))
 	{
 		std::cerr << "bledny plik!\n";
+		helpMe();
 		return 1;
 	}
 
@@ -176,10 +242,17 @@ int main(int argc, char **argv)
 	unsigned wi = img.width();
 	unsigned he = img.height();
 	
+	if(startX >= wi || startY >= he || finishX >= wi || finishY >= he)
+	{
+		helpMe();
+		return -2;
+	}
+	
 	//Warunek musi byæ spe³niony, aby próbowaæ w ogóle rozwi¹zaæ zadanie
 	if(wi % 32 != 0 || he % 32 != 0)
 	{
 		std::cerr << "obrazek ma wymiary nie bedace wielokrotnoscia 32 albo jest mniejszy niz 32x32!\n";
+		helpMe();
 		return 5;
 	}
 	
@@ -515,4 +588,9 @@ void narysujDroge(QImage &img, int startX, int startY, int finishX, int finishY)
 	}
 	img.setPixel(startX, startY, green.rgb());
 	img.setPixel(finishX, finishY, red.rgb());
+}
+
+void helpMe()
+{
+	std::cout << "\nProgram poddaje obraz binarny dyfuzji w celu znalezienia najkrotszej drogi z podanych wspolrzednych poczatkowych do koncowych." << "\n\nSposob uzycia:\n" << "\tdyfuzja [-parametr=wartosc] -i=sciezka/do.pliku" << "\n\nLista parametrow:\n" << "\t-i=sciezka/do.pliku\tobraz, ktory ma zostac poddany dyfuzji.\n" << "\t-sx=wartosc\t\twpsolzedne x punktu poczatkowego\n" << "\t-sy=wartosc\t\twpsolzedne y punktu poczatkowego\n" << "\t-fx=wartosc\t\twpsolzedne x punktu koncowego\n" << "\t-fy=wartosc\t\twpsolzedne y punktu koncowego\n" << "\t-h\t\t\tekran pomocy.\n\n";
 }
