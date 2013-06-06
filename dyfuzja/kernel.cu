@@ -18,51 +18,83 @@ enum DIR
 
 // DIR znajdzMinSasiad(QImage &in, int currX, int currY);
 
-void dyfuzja(QImage &in, QImage &out, int startX, int startY, int finishX, int finishY);
+void dyfuzja(QImage &in, QImage &out);
+void narysujDroge(QImage &img, int startX, int startY, int finishX, int finishY);
 
 
-__global__ void dyfuzjaKernel(int *wyn, const int *data, const double delta, const int width)
+__global__ void dyfuzjaKernel(unsigned *wyn, const unsigned *data, const int width, const int height, bool *czy)
 {
 	int x = blockDim.x * blockIdx.x + threadIdx.x;
 	int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-	wyn[x + y * width] = 16 * (blockIdx.x + blockIdx.y);
+	unsigned min = 0xffffffff;
+	unsigned black = 0xff000000;
+	
+	if(data[x + y * width] != 0xff000000)
+		return;
+	
+	if(x > 0)
+		if(data[x - 1 + y * width] != black && data[x - 1 + y * width] < min)
+			min = data[x - 1 + y * width];
+			
+	if(x < width -1)
+		if(data[x + 1 + y * width] != black && data[x + 1 + y * width] < min)
+			min = data[x + 1 + y * width];
+	
+	if(y > 0)
+		if(data[x + (y - 1) * width] != black && data[x + (y - 1) * width] < min)
+			min = data[x + (y - 1) * width];
+	
+	if(y < height - 1)
+		if(data[x + (y + 1) * width] != black && data[x + (y + 1) * width] < min)
+			min = data[x + (y + 1) * width];
+	
+	if(min != 0xffffffff)
+	{
+		min += 1;
+		wyn[x + y * width] = min;
+		// wyn[x + y * width] = 64;
+		*czy = true;
+	}
+	else
+		wyn[x + y * width] = 0xff000000;//data[x + y * width];
 }
 
 int main(int argc, char **argv)
 {
+	int startX = 4, startY = 4, finishX = 60, finishY = 60;
+
 	if(argc < 2)
 	{
 		std::cerr << "prosze podac sciezke do obrazka!\n";
 		return 3;
 	}
-	for(unsigned u = 0; u < argc; u++)
+	for(int u = 0; u < argc; u++)
 	{
 		std::cout << argv[u] << "\n";
 	}
 
 	std::cout<<"RUN!\n";
 	QImage img;
-	float dt = 0.01;
 	if(!img.load(argv[1]))
 	{
 		std::cerr << "bledny plik!\n";
 		return 1;
 	}
 
-	 QVector<QRgb> cTable1(256), cTable2(256);
-	 for(unsigned u = 0; u < 256; u++)
-	 {
-		QColor color(u,u,u);
-		cTable1[u] = color.rgb();
-		cTable2[u] = color.rgb();
-	 }
+	 // QVector<QRgb> cTable1(256), cTable2(256);
+	 // for(unsigned u = 0; u < 256; u++)
+	 // {
+		// QColor color(u,u,u);
+		// cTable1[u] = color.rgb();
+		// cTable2[u] = color.rgb();
+	 // }
 	
-	QImage out(img.width(), img.height(), QImage::Format_Indexed8), 
-		in(img.width(), img.height(), QImage::Format_Indexed8);
+	QImage out(img.width(), img.height(), QImage::Format_RGB32), 
+		in(img.width(), img.height(), QImage::Format_RGB32);
 		
-	out.setColorTable(cTable1);
-	in.setColorTable(cTable2);
+	// out.setColorTable(cTable1);
+	// in.setColorTable(cTable2);
 		
 	out.fill(0);
 	in.fill(0);
@@ -71,11 +103,11 @@ int main(int argc, char **argv)
 	
 	if(!img.isGrayscale())
 	{
-		if(img.format() != QImage::Format_RGB32 && img.format() != QImage::Format_ARGB32)
-		{
-			std::cerr << "zly format pliku - oczekuje pliku w skali szarosci albo RGB 32 lub 24 bity, otrzymano: " << img.format() << " - sprawdz wartosc w QImage::Format\n";
-			return 2;
-		}
+		// if(img.format() != QImage::Format_RGB32 && img.format() != QImage::Format_ARGB32)
+		// {
+			// std::cerr << "zly format pliku - oczekuje pliku w skali szarosci albo RGB 32 lub 24 bity, otrzymano: " << img.format() << " - sprawdz wartosc w QImage::Format\n";
+			// return 2;
+		// }
 		double gray;
 		unsigned tmp;
 		QColor color;
@@ -91,21 +123,23 @@ int main(int argc, char **argv)
 				tmp = color.blue();
 				gray += tmp;
 				gray = gray / 3;
-				
-				in.setPixel(x, y, gray);
+				color.setRgb(gray, gray, gray);
+				in.setPixel(x, y, color.rgb());
 			}
 		}
 	}
 	else
 		in = img;
-		
-	int *data = new int[img.width() * img.height()];
-	for(unsigned x = 0; x < img.width(); x++)
+	
+	in.setPixel(startX, startY, 0xff000001);	
+	
+	unsigned *data = new unsigned[img.width() * img.height()];
+	for(int x = 0; x < img.width(); x++)
 	{
-		for(unsigned y = 0; y < img.height(); y++)
+		for(int y = 0; y < img.height(); y++)
 		{
 			QColor color(in.pixel(x, y));
-			data[x + y * img.width()] = color.blue();
+			data[x + y * img.width()] = color.rgb();
 			// std::cout << data[x + y * img.width()] << "\t";
 		}
 	}
@@ -113,18 +147,29 @@ int main(int argc, char **argv)
 	std::cout<<"przystepuje do dyfuzji\n";
 	in.save("C:/Users/Krzych/Desktop/gray.png");
 	
-	dyfuzja(in, out, 4, 4, 60, 60);
-	std::cout << "skonczylem przetwazac\n";
+	dyfuzja(in, out);
+	out.save("C:/Users/Krzych/Desktop/out_dyf.png");
+	narysujDroge(out, startX, startY, finishX, finishY);
+	out.save("C:/Users/Krzych/Desktop/out_route.png");
 	
-	out.save("C:/Users/Krzych/Desktop/out_img.png");
-
-	return 0;
+	std::cout << "skonczylem przetwazac\n";
 	
 	//--- to samo na CUDA
 	//wskaŸniki dla zmiennych wykorzystywanych w kernelu
-	int *dev_in = NULL;
-	int *dev_out = NULL;
-	int size = img.width() * img.height();
+	unsigned *dev_in = NULL;
+	unsigned *dev_out = NULL;
+	bool *dev_stop_condition = NULL;
+	unsigned size = img.width() * img.height();
+	
+	unsigned wi = img.width();
+	unsigned he = img.height();
+	
+	//Warunek musi byæ spe³niony, aby próbowaæ w ogóle rozwi¹zaæ zadanie
+	if(wi % 32 != 0 || he % 32 != 0)
+	{
+		std::cerr << "obrazek ma wymiary nie bedace wielokrotnoscia 32 albo jest mniejszy niz 32x32!\n";
+		return 5;
+	}
 	
 	//wybranie karty
 	cudaError_t cudaStatus = cudaSetDevice(0);
@@ -135,14 +180,21 @@ int main(int argc, char **argv)
 	}
 
 	//alokowanie pamiêci karty graficznej
-	cudaStatus = cudaMalloc((void**)&dev_in, size * sizeof(int));
+	cudaStatus = cudaMalloc((void**)&dev_in, size * sizeof(unsigned));
 	if (cudaStatus != cudaSuccess)
 	{
 		fprintf(stderr, "cudaMalloc failed!");
 		goto Error;
 	}
 
-	cudaStatus = cudaMalloc((void**)&dev_out, size * sizeof(int));
+	cudaStatus = cudaMalloc((void**)&dev_out, size * sizeof(unsigned));
+	if (cudaStatus != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMalloc failed!");
+		goto Error;
+	}
+	
+	cudaStatus = cudaMalloc((void**)&dev_stop_condition, sizeof(bool));
 	if (cudaStatus != cudaSuccess)
 	{
 		fprintf(stderr, "cudaMalloc failed!");
@@ -150,27 +202,63 @@ int main(int argc, char **argv)
 	}
 	
 	//skopiowanie wartoœci do pamiêci karty graficznej
-	cudaStatus = cudaMemcpy(dev_in, data, size * sizeof(int), cudaMemcpyHostToDevice);
+	cudaStatus = cudaMemcpy(dev_in, data, size * sizeof(unsigned), cudaMemcpyHostToDevice);
 	if (cudaStatus != cudaSuccess)
 	{
 		fprintf(stderr, "cudaMemcpy failed!");
 		goto Error;
 	}
-
-	int wi = img.width();
-	int he = img.height();
 	
-	if(wi % 32 != 0 || he % 32 != 0)
+	cudaStatus = cudaMemcpy(dev_out, dev_in, size * sizeof(unsigned), cudaMemcpyDeviceToDevice);
+	if (cudaStatus != cudaSuccess)
 	{
-		std::cerr << "obrazek ma wymiary nie bedace wielokrotnoscia 32 albo sa mniejsze!\n";
-		return 5;
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto Error;
+	}
+	
+	bool *b_tmp = new bool;
+	*b_tmp = false;
+	cudaStatus = cudaMemcpy(dev_stop_condition, b_tmp, sizeof(bool), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto Error;
 	}
 	
 	//Uruchomienie kernela na karcie grafiki
 	dim3 threadsPerBlock(32, 32);	//Maximum supported values!
 	dim3 numBlocks(wi / threadsPerBlock.x, he / threadsPerBlock.y);
-	dyfuzjaKernel<<<numBlocks, threadsPerBlock>>>(dev_out, dev_in, dt, wi);
-
+	
+	while(true)
+	{
+		dyfuzjaKernel<<<numBlocks, threadsPerBlock>>>(dev_out, dev_in, wi, he, dev_stop_condition);
+		
+		cudaStatus = cudaMemcpy(b_tmp, dev_stop_condition, sizeof(bool), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto Error;
+		}
+		
+		if(*b_tmp == false)
+			break;
+			
+		cudaStatus = cudaMemcpy(dev_in, dev_out, size * sizeof(unsigned), cudaMemcpyDeviceToDevice);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto Error;
+		}
+		
+		*b_tmp = false;
+		cudaStatus = cudaMemcpy(dev_stop_condition, b_tmp, sizeof(bool), cudaMemcpyHostToDevice);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto Error;
+		}
+	}
+	
 	//Synchronizacja z kart¹
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
@@ -179,7 +267,7 @@ int main(int argc, char **argv)
 	}
 	
 	for(unsigned u = 0; u < size; u++)
-		data[u] = 200;
+		data[u] = 0;
 	
 	// Copy output vector from GPU buffer to host memory.
 	cudaStatus = cudaMemcpy(data, dev_out, size * sizeof(int), cudaMemcpyDeviceToHost);
@@ -204,7 +292,9 @@ int main(int argc, char **argv)
 			out.setPixel(x, y, data[x + y * wi]);
 		}
 	}
-	out.save("C:/Users/Krzych/Desktop/out_cuda_img.jpg");
+	out.save("C:/Users/Krzych/Desktop/out_cuda_img.png");
+	narysujDroge(out, startX, startY, finishX, finishY);
+	out.save("C:/Users/Krzych/Desktop/out_cuda_img_rout.png");
 	
 Error:
 	cudaFree(dev_in);
@@ -244,40 +334,41 @@ Error:
     return 0;
 }
 
-int znajdzMin(QImage &in, int currX, int currY)
+unsigned znajdzMin(QImage &in, int currX, int currY)
 {
-	int min = 255;
-	QColor color;
+	unsigned min = 0xfffffffe;
+	unsigned color;
+	QColor black(0, 0, 0);
 	if(currX > 0)
 	{
 		color = in.pixel(currX - 1, currY);
-		if(color.blue() != 0)
-			if(min > color.blue())
-				min = color.blue();
+		if(color != black.rgb())
+			if(min > color)
+				min = color;
 	}
 	
 	if(currX < in.width() - 1)
 	{
 		color = in.pixel(currX + 1, currY);
-		if(color.blue() != 0)
-			if(min > color.blue())
-				min = color.blue();
+		if(color != black.rgb())
+			if(min > color)
+				min = color;
 	}
 
 	if(currY > 0)
 	{
 		color = in.pixel(currX, currY - 1);
-		if(color.blue() != 0)
-			if(min > color.blue())
-				min = color.blue();
+		if(color != black.rgb())
+			if(min > color)
+				min = color;
 	}
 
 	if(currY < in.height() - 1)
 	{
 		color = in.pixel(currX, currY + 1);
-		if(color.blue() != 0)
-			if(min > color.blue())
-				min = color.blue();
+		if(color != black.rgb())
+			if(min > color)
+				min = color;
 	}
 	return min + 1;
 }
@@ -285,73 +376,75 @@ int znajdzMin(QImage &in, int currX, int currY)
 DIR znajdzMinSasiad(QImage &in, int currX, int currY)
 {
 	DIR ret = DIR::none;
-	int min = 255;
-	QColor color;
+	unsigned min = 0xffffffff;
+	unsigned color;
+	QColor black(0, 0, 0);
 	if(currX > 0)
 	{
 		color = in.pixel(currX - 1, currY);
-		// if(color.blue() != 0)
-			if(min > color.blue())
-			{
-				min = color.blue();
-				ret = DIR::left;
-			}
+		if(min > color)
+		{
+			min = color;
+			ret = DIR::left;
+		}
 	}
 	
 	if(currX < in.width() - 1)
 	{
 		color = in.pixel(currX + 1, currY);
-		// if(color.blue() != 0)
-			if(min > color.blue())
-			{
-				min = color.blue();
-				ret = DIR::right;
-			}
+		if(min > color)
+		{
+			min = color;
+			ret = DIR::right;
+		}
 	}
 
 	if(currY > 0)
 	{
 		color = in.pixel(currX, currY - 1);
-		// if(color.blue() != 0)
-			if(min > color.blue())
-			{
-				min = color.blue();
-				ret = DIR::up;
-			}
+		if(min > color)
+		{
+			min = color;
+			ret = DIR::up;
+		}
 	}
 
 	if(currY < in.height() - 1)
 	{
 		color = in.pixel(currX, currY + 1);
-		// if(color.blue() != 0)
-			if(min > color.blue())
-			{
-				min = color.blue();
-				ret = DIR::down;
-			}
+		if(min > color)
+		{
+			min = color;
+			ret = DIR::down;
+		}
 	}
 	return ret;
 }
 
-void dyfuzja(QImage &in, QImage &out, int startX, int startY, int finishX, int finishY)
+void dyfuzja(QImage &in, QImage &out)
 {
-	in.setPixel(startX, startY, 1);
+	// in.setPixel(startX, startY, 0xff000001);
 	out = in;
 
+	QColor black(0, 0, 0);
+	std::cout << "black: " << std::hex << black.rgb() << "\n";
 	bool czy = false;
 	while(true)
 	{
-		for(unsigned x = 0; x < in.width(); x++)
+		for(int x = 0; x < in.width(); x++)
 		{
-			for(unsigned y = 0; y < in.height(); y++)
+			for(int y = 0; y < in.height(); y++)
 			{
-				QColor c = out.pixel(x, y);
-				if(c.blue() == 0)
+				unsigned c = out.pixel(x, y);
+				if(c == black.rgb())
 				{
-					int min = znajdzMin(in, x, y);
-					c.setRgb(min, min, min);
-					out.setPixel(x, y, c.rgb());
-					czy  = true;
+					unsigned min = znajdzMin(in, x, y);
+					if(min != 0xffffffff)
+					{
+						c = min;
+						out.setPixel(x, y, c);
+						czy = true;
+					}
 				}
 			}
 		}
@@ -361,20 +454,20 @@ void dyfuzja(QImage &in, QImage &out, int startX, int startY, int finishX, int f
 		czy = false;
 		in = out;
 	}
-	
-	out.convertToFormat(QImage::Format_RGB32);
-	QColor c(0, 255, 0);
-	out.setPixel(startX, startY, c.rgb());
-	c.setRgb(255, 0, 255);
-	out.setPixel(finishX, finishY, c.rgb());
-	
-	c.setRgb(out.pixel(finishX, finishY));
+}
+
+void narysujDroge(QImage &img, int startX, int startY, int finishX, int finishY)
+{
 	QColor green(0, 255, 0);
 	QColor blue(0, 0, 255);
+	QColor red(255, 0, 0);
+	QColor mazak(0xff, 80, 80);
 	int x = finishX, y = finishY;
-	while(c != green)
+	QImage tmp = img;
+
+	while(x != startX || y != startY)
 	{
-		DIR next = znajdzMinSasiad(out, x, y);
+		DIR next = znajdzMinSasiad(tmp, x, y);
 		switch(next)
 		{
 			case DIR::up:
@@ -393,7 +486,8 @@ void dyfuzja(QImage &in, QImage &out, int startX, int startY, int finishX, int f
 				std::cerr << "nieznany kierunek!\n";
 				return;
 		}
-		c.setRgb(out.pixel(x, y));
-		out.setPixel(x, y, blue.rgb()); 
+		img.setPixel(x, y, mazak.rgb()); 
 	}
+	img.setPixel(startX, startY, green.rgb());
+	img.setPixel(finishX, finishY, red.rgb());
 }
