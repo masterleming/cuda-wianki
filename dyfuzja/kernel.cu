@@ -6,6 +6,7 @@
 #include <QtGui/QImage>
 #include <QColor>
 #include <iostream>
+#include <ctime>
 
 enum DIR
 {
@@ -69,10 +70,10 @@ int main(int argc, char **argv)
 		std::cerr << "prosze podac sciezke do obrazka!\n";
 		return 3;
 	}
-	for(int u = 0; u < argc; u++)
-	{
-		std::cout << argv[u] << "\n";
-	}
+	// for(int u = 0; u < argc; u++)
+	// {
+		// std::cout << argv[u] << "\n";
+	// }
 
 	std::cout<<"RUN!\n";
 	QImage img;
@@ -99,7 +100,7 @@ int main(int argc, char **argv)
 	out.fill(0);
 	in.fill(0);
 	
-	std::cout<< "sprawdzam przestrzen barw.\n";
+	// std::cout<< "sprawdzam przestrzen barw.\n";
 	
 	if(!img.isGrayscale())
 	{
@@ -143,21 +144,32 @@ int main(int argc, char **argv)
 			// std::cout << data[x + y * img.width()] << "\t";
 		}
 	}
-
-	std::cout<<"przystepuje do dyfuzji\n";
-	in.save("C:/Users/Krzych/Desktop/gray.png");
 	
+	time_t timer1, timer2;
+	
+	// std::cout<<"przystepuje do dyfuzji\n";
+	in.save("C:/Users/Krzych/Desktop/gray.png");
+	/*	//to samo na CPU
+	time(&timer1);
 	dyfuzja(in, out);
+	time(&timer2);
+	
+	double sec = difftime(timer2, timer1);
+	
 	out.save("C:/Users/Krzych/Desktop/out_dyf.png");
 	narysujDroge(out, startX, startY, finishX, finishY);
 	out.save("C:/Users/Krzych/Desktop/out_route.png");
 	
-	std::cout << "skonczylem przetwazac\n";
+	// std::cout << "skonczylem przetwazac\n";
+
+	std::cout << "CPU time: " << sec << " [s]\n";
+	//*/
 	
 	//--- to samo na CUDA
 	//wskaŸniki dla zmiennych wykorzystywanych w kernelu
 	unsigned *dev_in = NULL;
 	unsigned *dev_out = NULL;
+	unsigned *tmp_ptr = NULL;
 	bool *dev_stop_condition = NULL;
 	unsigned size = img.width() * img.height();
 	
@@ -229,6 +241,12 @@ int main(int argc, char **argv)
 	dim3 threadsPerBlock(32, 32);	//Maximum supported values!
 	dim3 numBlocks(wi / threadsPerBlock.x, he / threadsPerBlock.y);
 	
+	cudaEvent_t start, stop;
+	float time = 0;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
+	
 	while(true)
 	{
 		dyfuzjaKernel<<<numBlocks, threadsPerBlock>>>(dev_out, dev_in, wi, he, dev_stop_condition);
@@ -242,7 +260,7 @@ int main(int argc, char **argv)
 		
 		if(*b_tmp == false)
 			break;
-			
+		
 		cudaStatus = cudaMemcpy(dev_in, dev_out, size * sizeof(unsigned), cudaMemcpyDeviceToDevice);
 		if (cudaStatus != cudaSuccess)
 		{
@@ -261,10 +279,17 @@ int main(int argc, char **argv)
 	
 	//Synchronizacja z kart¹
 	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
+	if (cudaStatus != cudaSuccess)
+	{
 		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
 		goto Error;
 	}
+	
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&time, start, stop);
+	
+	std::cout << "GPU time: " << time << " [ms]\n";
 	
 	for(unsigned u = 0; u < size; u++)
 		data[u] = 0;
@@ -427,7 +452,7 @@ void dyfuzja(QImage &in, QImage &out)
 	out = in;
 
 	QColor black(0, 0, 0);
-	std::cout << "black: " << std::hex << black.rgb() << "\n";
+	// std::cout << "black: " << std::hex << black.rgb() << "\n";
 	bool czy = false;
 	while(true)
 	{
