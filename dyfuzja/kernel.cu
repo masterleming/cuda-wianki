@@ -7,44 +7,26 @@
 #include <QColor>
 #include <iostream>
 
-const double k = 1;
-const double k2 = k * k;
-
-cudaError_t addWithCuda(int *c, const int *a, const int *b, size_t size);
-
-__global__ void addKernel(int *c, const int *a, const int *b)
+enum DIR
 {
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
-}
+	none = -1,
+	up = 0,
+	right,
+	down,
+	left
+};
 
-void dyfuzja(QImage &in, QImage &out, double delta);
-//parametry:
-// - s - wartosc
-// - ss - kwadrat wartosci
-double normaGradientu(double kwadratPochodnaX, double kwadratPochodnaY);
-double pochodnaX(QImage &in, int x, int y);
-double pochodnaY(QImage &in, int x, int y);
-double pochodnaXX(QImage &in, int x, int y);
-double pochodnaYY(QImage &in, int x, int y);
+// DIR znajdzMinSasiad(QImage &in, int currX, int currY);
+
+void dyfuzja(QImage &in, QImage &out, int startX, int startY, int finishX, int finishY);
+
 
 __global__ void dyfuzjaKernel(int *wyn, const int *data, const double delta, const int width)
 {
-	int x = threadIdx.x + 1;
-	int y = threadIdx.y + 1;
-	int prev = data[x + y * width];
+	int x = blockDim.x * blockIdx.x + threadIdx.x;
+	int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-	const double k = 1;
-	const double k2 = k * k;
-	
-	double ux = ((double)(data[x + 1 + y * width] - data[x - 1 + y * width])) / 2;
-	double uy = ((double)(data[x + (y + 1) * width] - data[x + (y - 1) * width])) / 2;
-	double ux2 = ux * ux;
-	double uy2 = uy * uy;
-	double uxx = data[x + 1 + y * width] - 2 * data[x + y * width] + data[x + 1 + y * width];
-	double uyy = data[x + (y + 1) * width] - 2 * data[x + y * width] + data[x + (y - 1) * width];
-	double c = 1 / (1 + (ux2 + uy2) / k2);
-	wyn[x + y * width] = (int)(prev + delta * ((c - c * c * 2 / k2) * (ux2 * uxx + uy2 * uyy)));
+	wyn[x + y * width] = 16 * (blockIdx.x + blockIdx.y);
 }
 
 int main(int argc, char **argv)
@@ -61,7 +43,7 @@ int main(int argc, char **argv)
 
 	std::cout<<"RUN!\n";
 	QImage img;
-	double dt = 0.01;
+	float dt = 0.01;
 	if(!img.load(argv[1]))
 	{
 		std::cerr << "bledny plik!\n";
@@ -113,8 +95,6 @@ int main(int argc, char **argv)
 				in.setPixel(x, y, gray);
 			}
 		}
-		
-//		in = img.convertToFormat(QImage::Format_Indexed8);
 	}
 	else
 		in = img;
@@ -124,44 +104,26 @@ int main(int argc, char **argv)
 	{
 		for(unsigned y = 0; y < img.height(); y++)
 		{
-			QColor color(img.pixel(x, y));
+			QColor color(in.pixel(x, y));
 			data[x + y * img.width()] = color.blue();
+			// std::cout << data[x + y * img.width()] << "\t";
 		}
 	}
 
 	std::cout<<"przystepuje do dyfuzji\n";
+	in.save("C:/Users/Krzych/Desktop/gray.png");
 	
-	unsigned min = 255, max = 0;
-	for(unsigned x = 0; x < in.width(); x++)
-	{
-		for(unsigned y = 0; y < in.height(); y++)
-		{
-			QColor pix(in.pixel(x, y));
-			if(pix.blue() < min)
-				min = pix.blue();
-			if(pix.blue() > max)
-				max = pix.blue();
-		}
-	}
-	
-	std::cout << "max: " << max << "\tmin: " << min << "\nis gray scale: " << in.isGrayscale() << "\nis gray scale: " << out.isGrayscale() << "\n";
-		
-	in.save("C:/Users/Krzych/Desktop/gray.jpg");
-	for(unsigned u = 0; u < 1; u++)
-	{
-		std::cout << "iteracja: " << u << "\n";
-		dyfuzja(in, out, dt);
-		in = out.copy();
-	}
-	
+	dyfuzja(in, out, 4, 4, 60, 60);
 	std::cout << "skonczylem przetwazac\n";
 	
-	out.save("C:/Users/Krzych/Desktop/out_img.jpg");
+	out.save("C:/Users/Krzych/Desktop/out_img.png");
 
+	return 0;
+	
 	//--- to samo na CUDA
 	//wskaŸniki dla zmiennych wykorzystywanych w kernelu
-	int *dev_in = 0;
-	int *dev_out = 0;
+	int *dev_in = NULL;
+	int *dev_out = NULL;
 	int size = img.width() * img.height();
 	
 	//wybranie karty
@@ -198,9 +160,16 @@ int main(int argc, char **argv)
 	int wi = img.width();
 	int he = img.height();
 	
+	if(wi % 32 != 0 || he % 32 != 0)
+	{
+		std::cerr << "obrazek ma wymiary nie bedace wielokrotnoscia 32 albo sa mniejsze!\n";
+		return 5;
+	}
+	
 	//Uruchomienie kernela na karcie grafiki
-	dim3 pixle(wi - 2, he - 2);
-	dyfuzjaKernel<<<1, pixle>>>(dev_out, dev_in, dt, wi);
+	dim3 threadsPerBlock(32, 32);	//Maximum supported values!
+	dim3 numBlocks(wi / threadsPerBlock.x, he / threadsPerBlock.y);
+	dyfuzjaKernel<<<numBlocks, threadsPerBlock>>>(dev_out, dev_in, dt, wi);
 
 	//Synchronizacja z kart¹
 	cudaStatus = cudaDeviceSynchronize();
@@ -209,6 +178,9 @@ int main(int argc, char **argv)
 		goto Error;
 	}
 	
+	for(unsigned u = 0; u < size; u++)
+		data[u] = 200;
+	
 	// Copy output vector from GPU buffer to host memory.
 	cudaStatus = cudaMemcpy(data, dev_out, size * sizeof(int), cudaMemcpyDeviceToHost);
 	if (cudaStatus != cudaSuccess)
@@ -216,11 +188,19 @@ int main(int argc, char **argv)
 		fprintf(stderr, "cudaMemcpy failed!");
 		goto Error;
 	}
-
+	
+	out.fill(0);
+	if(!out.isGrayscale())
+	{
+		std::cerr << "out nie jest szaroodcieniowe!";
+		return 4;
+	}
+	
 	for(unsigned x = 0; x < wi; x++)
 	{
 		for(unsigned y = 0; y < he; y++)
 		{
+			// std::cout << data[x + y * wi] << "\t";
 			out.setPixel(x, y, data[x + y * wi]);
 		}
 	}
@@ -264,159 +244,156 @@ Error:
     return 0;
 }
 
-void dyfuzja(QImage &in, QImage &out, double delta)
+int znajdzMin(QImage &in, int currX, int currY)
 {
-	double nextVal;
-	double c;
-	double u, ux, ux2, uy, uy2, uxx, uyy;
+	int min = 255;
 	QColor color;
-	for(int x = 0; x < in.width(); x++)
+	if(currX > 0)
 	{
-		for(int y = 0; y < in.height(); y++)
+		color = in.pixel(currX - 1, currY);
+		if(color.blue() != 0)
+			if(min > color.blue())
+				min = color.blue();
+	}
+	
+	if(currX < in.width() - 1)
+	{
+		color = in.pixel(currX + 1, currY);
+		if(color.blue() != 0)
+			if(min > color.blue())
+				min = color.blue();
+	}
+
+	if(currY > 0)
+	{
+		color = in.pixel(currX, currY - 1);
+		if(color.blue() != 0)
+			if(min > color.blue())
+				min = color.blue();
+	}
+
+	if(currY < in.height() - 1)
+	{
+		color = in.pixel(currX, currY + 1);
+		if(color.blue() != 0)
+			if(min > color.blue())
+				min = color.blue();
+	}
+	return min + 1;
+}
+
+DIR znajdzMinSasiad(QImage &in, int currX, int currY)
+{
+	DIR ret = DIR::none;
+	int min = 255;
+	QColor color;
+	if(currX > 0)
+	{
+		color = in.pixel(currX - 1, currY);
+		// if(color.blue() != 0)
+			if(min > color.blue())
+			{
+				min = color.blue();
+				ret = DIR::left;
+			}
+	}
+	
+	if(currX < in.width() - 1)
+	{
+		color = in.pixel(currX + 1, currY);
+		// if(color.blue() != 0)
+			if(min > color.blue())
+			{
+				min = color.blue();
+				ret = DIR::right;
+			}
+	}
+
+	if(currY > 0)
+	{
+		color = in.pixel(currX, currY - 1);
+		// if(color.blue() != 0)
+			if(min > color.blue())
+			{
+				min = color.blue();
+				ret = DIR::up;
+			}
+	}
+
+	if(currY < in.height() - 1)
+	{
+		color = in.pixel(currX, currY + 1);
+		// if(color.blue() != 0)
+			if(min > color.blue())
+			{
+				min = color.blue();
+				ret = DIR::down;
+			}
+	}
+	return ret;
+}
+
+void dyfuzja(QImage &in, QImage &out, int startX, int startY, int finishX, int finishY)
+{
+	in.setPixel(startX, startY, 1);
+	out = in;
+
+	bool czy = false;
+	while(true)
+	{
+		for(unsigned x = 0; x < in.width(); x++)
 		{
-			color.setRgb(in.pixel(x, y));
-			u = color.blue();
-			ux = pochodnaX(in, x, y);
-			uy = pochodnaY(in, x, y);
-			ux2 = ux * ux;
-			uy2 = uy * uy;
-			uxx = pochodnaXX(in, x, y);
-			uyy = pochodnaYY(in, x, y);
-			c = normaGradientu(ux2, uy2);
-			nextVal = u + delta * ((c - c * c * 2 / k2) * (ux2 * uxx + uy2 * uyy));
-//			color.setRgb(nextVal, nextVal, nextVal);
-//			std::cout << nextVal << "\n";
-			out.setPixel(x, y, ((int)(nextVal))%256);
+			for(unsigned y = 0; y < in.height(); y++)
+			{
+				QColor c = out.pixel(x, y);
+				if(c.blue() == 0)
+				{
+					int min = znajdzMin(in, x, y);
+					c.setRgb(min, min, min);
+					out.setPixel(x, y, c.rgb());
+					czy  = true;
+				}
+			}
 		}
-	}
-}
-
-double normaGradientu(double kwadratPochodnaX, double kwadratPochodnaY)
-{
-	return 1 / (1 + (kwadratPochodnaX + kwadratPochodnaY) / k2);
-}
-
-double pochodnaX(QImage &in, int x, int y)
-{
-	QColor pix;
-	if(x == 0 || y == 0 || x == in.width() - 1 || y == in.height() - 1)
-	{
-		pix.setRgb(in.pixel(x, y));
-		return pix.blue();
-	}
-	
-	QColor prev(in.pixel(x - 1, y)), next(in.pixel(x + 1, y));
-	
-	return ((double)(next.blue() - prev.blue())) / 2;
-}
-
-double pochodnaY(QImage &in, int x, int y)
-{
-	QColor pix(in.pixel(x, y));
-	if(x == 0 || y == 0 || x == in.width() - 1 || y == in.height() - 1)
-	{
-		return pix.blue();
-	}
-	
-	QColor prev(in.pixel(x, y - 1)), next(in.pixel(x, y + 1));
-	
-	return ((double)(next.blue() - prev.blue())) / 2;
-}
-
-double pochodnaXX(QImage &in, int x, int y)
-{	
-	QColor curr(in.pixel(x,y));
-	if(x == 0 || y == 0 || x == in.width() - 1 || y == in.height() - 1)
-		return curr.blue();
 		
-	QColor prev(in.pixel(x - 1, y)), next(in.pixel(x + 1, y));
+		if(!czy)
+			break;
+		czy = false;
+		in = out;
+	}
 	
-	return next.blue() - 2 * curr.blue() + prev.blue();
-}
-
-double pochodnaYY(QImage &in, int x, int y)
-{
-	QColor curr(in.pixel(x,y));
-	if(x == 0 || y == 0 || x == in.width() - 1 || y == in.height() - 1)
-		return curr.blue();
-		
-	QColor prev(in.pixel(x, y - 1)), next(in.pixel(x, y + 1));
+	out.convertToFormat(QImage::Format_RGB32);
+	QColor c(0, 255, 0);
+	out.setPixel(startX, startY, c.rgb());
+	c.setRgb(255, 0, 255);
+	out.setPixel(finishX, finishY, c.rgb());
 	
-	return next.blue() - 2 * curr.blue() + prev.blue();
-}
-
-
-//------------------------------------------------------
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, size_t size)
-{
-    int *dev_a = 0;
-    int *dev_b = 0;
-    int *dev_c = 0;
-    cudaError_t cudaStatus;
-
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
-    }
-
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
-
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
-
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
-
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-    
-    return cudaStatus;
+	c.setRgb(out.pixel(finishX, finishY));
+	QColor green(0, 255, 0);
+	QColor blue(0, 0, 255);
+	int x = finishX, y = finishY;
+	while(c != green)
+	{
+		DIR next = znajdzMinSasiad(out, x, y);
+		switch(next)
+		{
+			case DIR::up:
+				y -= 1;
+				break;
+			case DIR::right:
+				x += 1;
+				break;
+			case DIR::down:
+				y += 1;
+				break;
+			case DIR::left:
+				x -= 1;
+				break;
+			case DIR::none:
+				std::cerr << "nieznany kierunek!\n";
+				return;
+		}
+		c.setRgb(out.pixel(x, y));
+		out.setPixel(x, y, blue.rgb()); 
+	}
 }
