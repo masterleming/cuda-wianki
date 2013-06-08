@@ -34,7 +34,10 @@ __global__ void dyfuzjaKernel(unsigned *wyn, const unsigned *data, const int wid
 	unsigned black = 0xff000000;
 	
 	if(data[x + y * width] != 0xff000000)
+	{
+		wyn[x + y * width] = data[x + y * width];
 		return;
+	}
 	
 	if(x > 0)
 		if(data[x - 1 + y * width] != black && data[x - 1 + y * width] < min)
@@ -214,7 +217,7 @@ int main(int argc, char **argv)
 	time_t timer1, timer2;
 	
 	// std::cout<<"przystepuje do dyfuzji\n";
-	in.save("C:/Users/Krzych/Desktop/gray.png");
+	in.save("out/gray.png");
 	/*	//to samo na CPU
 	time(&timer1);
 	dyfuzja(in, out);
@@ -222,9 +225,9 @@ int main(int argc, char **argv)
 	
 	double sec = difftime(timer2, timer1);
 	
-	out.save("C:/Users/Krzych/Desktop/out_dyf.png");
+	out.save("out/out_dyf.png");
 	narysujDroge(out, startX, startY, finishX, finishY);
-	out.save("C:/Users/Krzych/Desktop/out_route.png");
+	out.save("out/out_route.png");
 	
 	// std::cout << "skonczylem przetwazac\n";
 
@@ -334,12 +337,17 @@ int main(int argc, char **argv)
 		if(*b_tmp == false)
 			break;
 		
-		cudaStatus = cudaMemcpy(dev_in, dev_out, size * sizeof(unsigned), cudaMemcpyDeviceToDevice);
-		if (cudaStatus != cudaSuccess)
-		{
-			fprintf(stderr, "cudaMemcpy failed!");
-			goto Error;
-		}
+		// cudaStatus = cudaMemcpy(dev_in, dev_out, size * sizeof(unsigned), cudaMemcpyDeviceToDevice);
+		// if (cudaStatus != cudaSuccess)
+		// {
+			// fprintf(stderr, "cudaMemcpy failed!");
+			// goto Error;
+		// }
+		
+		tmp_ptr = dev_in;
+		dev_in = dev_out;
+		dev_out = tmp_ptr;
+		
 		
 		*b_tmp = false;
 		cudaStatus = cudaMemcpy(dev_stop_condition, b_tmp, sizeof(bool), cudaMemcpyHostToDevice);
@@ -390,9 +398,9 @@ int main(int argc, char **argv)
 			out.setPixel(x, y, data[x + y * wi]);
 		}
 	}
-	out.save("C:/Users/Krzych/Desktop/out_cuda_img.png");
+	out.save("out/out_cuda_img.png");
 	narysujDroge(out, startX, startY, finishX, finishY);
-	out.save("C:/Users/Krzych/Desktop/out_cuda_img_rout.png");
+	out.save("out//out_cuda_img_rout.png");
 	
 Error:
 	cudaFree(dev_in);
