@@ -5,8 +5,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cudaQt-reference-project", 
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dyfuzja", "dyfuzja\dyfuzja.vcxproj", "{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtDummy", "qtDummy\qtDummy.vcxproj", "{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -21,10 +19,6 @@ Global
 		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Debug|Win32.Build.0 = Debug|Win32
 		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Release|Win32.ActiveCfg = Release|Win32
 		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Release|Win32.Build.0 = Release|Win32
-		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Debug|Win32.ActiveCfg = Debug|Win32
-		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Debug|Win32.Build.0 = Debug|Win32
-		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Release|Win32.ActiveCfg = Release|Win32
-		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
