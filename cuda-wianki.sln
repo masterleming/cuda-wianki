@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cudaQt-reference-project", "cudaQt-reference-project\cudaQt-reference-project.vcxproj", "{9944BD26-9D22-439C-95B9-3F60933C8934}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dyfuzja", "dyfuzja\dyfuzja.vcxproj", "{1AE8F359-D3C7-4865-8D94-54EBAFC698BD}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dyfuzja", "dyfuzja\dyfuzja.vcxproj", "{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtDummy", "qtDummy\qtDummy.vcxproj", "{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,10 +17,14 @@ Global
 		{9944BD26-9D22-439C-95B9-3F60933C8934}.Debug|Win32.Build.0 = Debug|Win32
 		{9944BD26-9D22-439C-95B9-3F60933C8934}.Release|Win32.ActiveCfg = Release|Win32
 		{9944BD26-9D22-439C-95B9-3F60933C8934}.Release|Win32.Build.0 = Release|Win32
-		{1AE8F359-D3C7-4865-8D94-54EBAFC698BD}.Debug|Win32.ActiveCfg = Debug|Win32
-		{1AE8F359-D3C7-4865-8D94-54EBAFC698BD}.Debug|Win32.Build.0 = Debug|Win32
-		{1AE8F359-D3C7-4865-8D94-54EBAFC698BD}.Release|Win32.ActiveCfg = Release|Win32
-		{1AE8F359-D3C7-4865-8D94-54EBAFC698BD}.Release|Win32.Build.0 = Release|Win32
+		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Debug|Win32.Build.0 = Debug|Win32
+		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Release|Win32.ActiveCfg = Release|Win32
+		{9DA7BF28-E8D9-4BD4-A8E3-36DDA093414E}.Release|Win32.Build.0 = Release|Win32
+		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Debug|Win32.ActiveCfg = Debug|Win32
+		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Debug|Win32.Build.0 = Debug|Win32
+		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Release|Win32.ActiveCfg = Release|Win32
+		{17D95042-C5E4-4C4F-BE1D-EEA4244984A2}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

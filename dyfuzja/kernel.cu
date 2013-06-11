@@ -658,3 +658,9 @@ bool params()
 	}
 	return true;
 }
+
+
+
+// $(QTDIR)\include
+// $(QTDIR)\include\QtCore
+// $(QTDIR)\include\QtGui
