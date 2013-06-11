@@ -23,7 +23,11 @@ enum DIR
 void dyfuzja(QImage &in, QImage &out);
 void narysujDroge(QImage &img, int startX, int startY, int finishX, int finishY);
 void helpMe();
+bool params();
 
+// Zmienne globalne
+int startX = -1, startY = -1, finishX = -1, finishY = -1;
+unsigned cnt = -1;
 
 __global__ void dyfuzjaKernel(unsigned *wyn, const unsigned *data, const int width, const int height, bool *czy)
 {
@@ -68,8 +72,9 @@ __global__ void dyfuzjaKernel(unsigned *wyn, const unsigned *data, const int wid
 
 int main(int argc, char **argv)
 {
-	int startX = 4, startY = 4, finishX = 508, finishY = 508;
-	std::string imgDir;
+	// int startX = -1, startY = -1, finishX = -1, finishY = -1;
+	// unsigned cnt = -1;
+	std::string imgDir = "";
 	std::stringstream ss;
 	
 	for(int i = 0; i < argc; i++)
@@ -124,13 +129,26 @@ int main(int argc, char **argv)
 			case 'h':
 				helpMe();
 				return 0;
+			case 'n':
+				ss.clear();
+				ss.str(s.substr(3));
+				ss >> cnt;
 		}
 	}
 	
-	if(imgDir.size() == 0 || startX < 0 || startY < 0 || finishX < 0 || finishY < 0)
+	if(imgDir.size() == 0)
 	{
 		helpMe();
 		return -1;
+	}
+	
+	if(startX == -1 || startY == -1 || finishX == -1 || finishY == -1)
+		while(params());
+		
+	if(startX == -1 || startY == -1 || finishX == -1 || finishY == -1)
+	{
+		helpMe();
+		return 6;
 	}
 
 	// if(argc < 2)
@@ -214,7 +232,7 @@ int main(int argc, char **argv)
 		}
 	}
 	
-	time_t timer1, timer2;
+	//time_t timer1, timer2;
 	
 	// std::cout<<"przystepuje do dyfuzji\n";
 	in.save("out/gray.png");
@@ -242,8 +260,8 @@ int main(int argc, char **argv)
 	bool *dev_stop_condition = NULL;
 	unsigned size = img.width() * img.height();
 	
-	unsigned wi = img.width();
-	unsigned he = img.height();
+	int wi = img.width();
+	int he = img.height();
 	
 	if(startX >= wi || startY >= he || finishX >= wi || finishY >= he)
 	{
@@ -323,7 +341,7 @@ int main(int argc, char **argv)
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 	
-	while(true)
+	for(int i = 0; i < cnt; i++)
 	{
 		dyfuzjaKernel<<<numBlocks, threadsPerBlock>>>(dev_out, dev_in, wi, he, dev_stop_condition);
 		
@@ -390,9 +408,9 @@ int main(int argc, char **argv)
 		return 4;
 	}
 	
-	for(unsigned x = 0; x < wi; x++)
+	for(int x = 0; x < wi; x++)
 	{
-		for(unsigned y = 0; y < he; y++)
+		for(int y = 0; y < he; y++)
 		{
 			// std::cout << data[x + y * wi] << "\t";
 			out.setPixel(x, y, data[x + y * wi]);
@@ -524,6 +542,10 @@ DIR znajdzMinSasiad(QImage &in, int currX, int currY)
 			ret = DIR::down;
 		}
 	}
+	
+	if(min == in.pixel(currX, currY))
+		ret = DIR::none;
+	
 	return ret;
 }
 
@@ -600,5 +622,39 @@ void narysujDroge(QImage &img, int startX, int startY, int finishX, int finishY)
 
 void helpMe()
 {
-	std::cout << "\nProgram poddaje obraz binarny dyfuzji w celu znalezienia najkrotszej drogi z podanych wspolrzednych poczatkowych do koncowych." << "\n\nSposob uzycia:\n" << "\tdyfuzja [-parametr=wartosc] -i=sciezka/do.pliku" << "\n\nLista parametrow:\n" << "\t-i=sciezka/do.pliku\tobraz, ktory ma zostac poddany dyfuzji.\n" << "\t-sx=wartosc\t\twpsolzedne x punktu poczatkowego\n" << "\t-sy=wartosc\t\twpsolzedne y punktu poczatkowego\n" << "\t-fx=wartosc\t\twpsolzedne x punktu koncowego\n" << "\t-fy=wartosc\t\twpsolzedne y punktu koncowego\n" << "\t-h\t\t\tekran pomocy.\n\n";
+	std::cout << "\nProgram poddaje obraz binarny dyfuzji w celu znalezienia najkrotszej drogi z podanych wspolrzednych poczatkowych do koncowych." << "\n\nSposob uzycia:\n" << "\tdyfuzja [-parametr=wartosc] -i=sciezka/do.pliku" << "\n\nLista parametrow:\n" << "\t-i=sciezka/do.pliku\tobraz, ktory ma zostac poddany dyfuzji.\n" << "\t-sx=wartosc\t\twpsolzedne x punktu poczatkowego\n" << "\t-sy=wartosc\t\twpsolzedne y punktu poczatkowego\n" << "\t-fx=wartosc\t\twpsolzedne x punktu koncowego\n" << "\t-fy=wartosc\t\twpsolzedne y punktu koncowego\n" << "\t-n=wartosc\t\tilosc powtorzen algorytmu\n" << "\t-h\t\t\tekran pomocy.\n\n";
+}
+
+bool params()
+{
+	std::cout << "\nNIEKTORE PARAMETRY WEJSCIOWE NIE ZOSTALY ZAINICJOWANE!" <<
+		"\nstartX = " << startX << "\tstartY = " << startY << "\tfinishX = " << finishX << "\tfinishY = " << finishY <<
+		"\n\nCzy chesz teraz je uzupelnic?\n(Jesli wartosci nie zostana uzupelnione, to program zakonczy wykonanie)\n\n";
+
+	std::cout << "\t(1) startX\n\t(2) startY\n\t(3) finishX\n\t(4) finishY\n\n\t(0) wyjdz\n\n";
+	int x;
+	std::cin >> x;
+	std::cin.clear();
+	switch(x)
+	{
+		case 1:
+			std::cout << "\nPodaj nowa wartosc dla startX: ";
+			std::cin >> startX;
+			break;
+		case 2:
+			std::cout << "\nPodaj nowa wartosc dla startY: ";
+			std::cin >> startY;
+			break;
+		case 3:
+			std::cout << "\nPodaj nowa wartosc dla finishX: ";
+			std::cin >> finishX;
+			break;
+		case 4:
+			std::cout << "\nPodaj nowa wartosc dla finishY: ";
+			std::cin >> finishY;
+			break;
+		case 0:
+			return false;
+	}
+	return true;
 }
